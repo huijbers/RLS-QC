@@ -1,0 +1,112 @@
+---
+title: "Quality report for MRI"
+output: word_document
+---
+
+```{r,include=FALSE}
+#load("bp.rdata")       # example data
+source("RLS_MRI_QC_v1.R")  # standard qa functions
+MRIvisitreport <- RsPrepareQa(MRIvisitreport)
+MRIcontrareport <- RsPrepareQa(MRIcontrareport)
+#cardioData <- RsPrepareQa(cardioData)
+library(knitr)
+options(encoding = 'UTF-8')
+```
+
+This is the QA report for MRI. 
+This report was generated on the `r format(Sys.Date(), '%d. %B %Y')`.
+
+
+### Completeness of Contra-indications datasets
+
+The following table shows the number of Contra-Indications Interviews as indicated by
+the status "OK" given by the MRI techniciant.
+
+```{r, echo=FALSE}
+kable(RsStatusByDate(MRIcontrareport) %>%
+        rename(Month=metadata_exam_date_group),
+      caption="Number of participants per month")
+```
+
+### Completeness of MRI datasets
+
+The following table shows the number of MRI datasets as indicated by
+the status "OK" given by the MRI techniciant.
+
+```{r, echo=FALSE}
+kable(RsStatusByDate(MRIvisitreport) %>%
+        rename(Month=metadata_exam_date_group),
+      caption="Number of participants per month")
+```
+
+The following chart shows the same, split by the various possible states of the examinations.
+
+```{r, echo=FALSE}
+MRIvisitreport %>% 
+  group_by(metadata_exam_date_group, metadata_exam_status) %>%
+  summarize(N = n()) %>%
+
+ggplot(aes(x=metadata_exam_date_group, y=N,
+           group=metadata_exam_status)) +
+			 geom_bar(aes(fill=metadata_exam_status), stat="identity") +
+  theme(legend.position="top") +
+	theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  xlab("month")+ylab("N")+
+  ggtitle("Number of datasets per month, by status")+
+  labs(fill="Status")+
+  guides(fill=guide_legend(nrow=2))+
+  scale_fill_hue(limits = c("CONTRA", "SKIPPED", "OK", "NOT_UPLOADED_YET", "TIMEOUT", "INCOMPLETE", "INCOMPLETE_TIMEOUT", "INCOMPLETE_TECHNICAL"), labels=c("CI/Exclusion", "Skipped", "OK", "Not uploaded yet", "Not done_timeout", "Incomplete", "Incomplete_timeout", "Incomplete_technical issue"))
+```
+
+### Duration of the Contra-indications interview
+
+The following table shows the median and p90 duration in min of the
+examination "Contra-indications interview" per age group.
+
+```{r, echo=FALSE}
+kable(RsDurationByAge(MRIcontrareport) %>%
+        rename(Age_group=metadata_pt_age_group),
+      caption="Duration by age group")
+```
+
+The following figure shows boxplots of the duration of the examination
+"Contra-indications interview" which were marked "OK" per age group.
+
+```{r, echo=FALSE}
+# depending on the examination, maybe filter by state before plotting
+plannedCutoff <- 10
+MRIcontrareport %>% filter(metadata_exam_status == 'OK') %>% 
+  filter(!is.na(metadata_exam_duration_min)) %>% 
+ggplot(aes(x=metadata_pt_age_group, y=metadata_exam_duration_min))+
+  stat_boxplot(geom="errorbar", width = 0.5)+
+  geom_hline(yintercept=plannedCutoff,linetype="dashed",colour="red")+
+  geom_boxplot()+
+  xlab("age group")+ylab("duration of examination [min]")+
+  ggtitle("Contra-indications measurement\nduration per age group")
+```
+
+
+## MRI contraindication interview
+
+table with results from the interview
+```{r, echo=FALSE}
+MRIcontrareport %>% group_by(metadata_exam_date_group) %>% 
+  summarize(N=n(), operation = sum(mrici_op=="YES", na.rm=TRUE),
+            surgery = sum(mrici_implant=="YES", na.rm=TRUE),
+            metalinplant = sum(mrici_metal=="YES", na.rm=TRUE),
+            tatoo = sum(mrici_tatoo=="YES", na.rm=TRUE),
+            metalwork = sum(mrici_metalwork=="YES", na.rm=TRUE),	
+            bling = sum(mrici_bling=="YES", na.rm=TRUE),
+            seizure = sum(mrici_seizure=="YES", na.rm=TRUE),	
+            pregnant = sum(mrici_pregnant=="YES", na.rm=TRUE)) %>%
+  kable()
+```
+
+
+## Comparisons with other examinations
+
+```{r, include=FALSE}
+allComplete <- RsComplete(MRIvisitreport, MRIcontrareport) #WH can add more "report - basicly a merge"
+```
+
+
